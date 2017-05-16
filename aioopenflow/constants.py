@@ -164,7 +164,7 @@ CA = (None,
 	}
 )
 #use:
-#CA[openflow10].[0x004] = "CA_PORT_STATS"
+#CA[openflow10].[0x004] == "CA_PORT_STATS"
 
 
 
@@ -188,24 +188,71 @@ ACTIONS = {
 
 
 #switch ports:
-PORT_Max        = 0xFFFFFF00
-PORT_InPort     = 0xFFFFFFF8
-PORT_Table      = 0xFFFFFFF9
-PORT_Normal     = 0xFFFFFFFA
-PORT_Flood      = 0xFFFFFFFB
-PORT_All        = 0xFFFFFFFC
-PORT_Controller = 0xFFFFFFFD
-PORT_Local      = 0xFFFFFFFE
-PORT_Any        = 0xFFFFFFFF#of v1.1 and 1v2
-PORT_None       = 0xFFFFFFFF#of v1.0
-PORTS = (PORT_Max, PORT_InPort, PORT_Table, PORT_Normal, PORT_Flood, PORT_All, PORT_Controller, PORT_Local, PORT_Any, PORT_None)
+PORT_ID_Max        = 0xFFFFFF00
+PORT_ID_InPort     = 0xFFFFFFF8
+PORT_ID_Table      = 0xFFFFFFF9
+PORT_ID_Normal     = 0xFFFFFFFA
+PORT_ID_Flood      = 0xFFFFFFFB
+PORT_ID_All        = 0xFFFFFFFC
+PORT_ID_Controller = 0xFFFFFFFD
+PORT_ID_Local      = 0xFFFFFFFE
+PORT_ID_Any        = 0xFFFFFFFF#of v1.1 and 1v2
+PORT_ID_None       = 0xFFFFFFFF#of v1.0
+PORT_IDS = (PORT_ID_Max, PORT_ID_InPort, PORT_ID_Table, PORT_ID_Normal, PORT_ID_Flood, PORT_ID_All, PORT_ID_Controller, PORT_ID_Local, PORT_ID_Any, PORT_ID_None)
 
+PORT_CONFIG = {
+	0x00000001 : "PortDown",
+	0x00000002 : "NoSTP",#only used in openflow v1.0
+	0x00000004 : "NoRecv",
+	0x00000008 : "NoRecvSTP",#only used in openflow v1.0
+	0x00000010 : "NoFlood",#only used in openflow v1.0
+	0x00000020 : "NoFwd",
+	0x00000040 : "NoPacketIn",
+}
 
+PORT_STATES = (None,
+	{#openflow v1.0
+		0x00000000 : "STPListen",
+		0x00000001 : "LinkDown",
+		0x00000002 : "STPLearn",
+		0x00000004 : "STPForward",
+		0x00000008 : "STPBlock",
+		0x00000010 : "STPMask",
+	}, {#openflow v1.1
+		0x00000001 : "LinkDown",
+		0x00000002 : "Blocked",
+		0x00000004 : "Live",
+	}, {#openflow v1.2
+		0x00000001 : "LinkDown",
+		0x00000002 : "Blocked",
+		0x00000004 : "Live",
+	}, {#openflow v1.3
+		0x00000001 : "LinkDown",
+		0x00000002 : "Blocked",
+		0x00000004 : "Live",
+	}
+)
+#use:
+#PORT_STATES[openflow10].[0x004] == "NoRecv"
 
-
-
-		
-
+PORT_FEATURE = {
+	0x00000001 : "10MB_HD",
+	0x00000002 : "10MB_FD",
+	0x00000004 : "100MB_HD",
+	0x00000008 : "100MB_FD",
+	0x00000010 : "1GB_HD",
+	0x00000020 : "1GB_FD",
+	0x00000040 : "10GB_FD",
+	0x00000080 : "40GB_FD", #not used in openflow 1.0
+	0x00000100 : "100GB_FD",#not used in openflow 1.0
+	0x00000200 : "1TB_FD",  #not used in openflow 1.0
+	0x00000400 : "Other",   #not used in openflow 1.0
+	0x00000800 : "Copper",
+	0x00001000 : "Fiber",
+	0x00002000 : "AutoNeg",
+	0x00004000 : "Pause",
+	0x00008000 : "PauseAsym",
+}
 
 
 

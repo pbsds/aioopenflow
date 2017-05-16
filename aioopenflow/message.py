@@ -1,5 +1,6 @@
 import itertools
 from aioopenflow.constants import *
+from aioopenflow.types import Port
 
 def is_msg(msg):
 	"a check to see if the instance _msg_ is a subclass og aioopenflow.message.Message"
@@ -132,7 +133,7 @@ class MessageFeatureRes(Message):
 	auxiliary_id = 0          #indicate how the switch is treating the OpenFlow transport channel (master controller, or auxiliary). Only used in openflow v1.3 and v1.4
 	capabilities = frozenset()#capabilities supported by the switch
 	actions      = frozenset()#actions supported by the switch, only used in openflow v1.0
-	ports        = frozenset()#only used in openflow v1.0, v1.1 and v1.2
+	ports        = tuple()    #only used in openflow v1.0, v1.1 and v1.2
 	
 	def __str__(self):
 		return f"MessageFeatureRes(ver={self.version}, xid={self.xid}) = {{datapath_id: {self.datapath_id}\n\tn_buffers: {self.n_buffers}\n\tn_tables: {self.n_tables}\n\tauxiliary_id: {self.auxiliary_id}\n\tcapabilities: {self.capabilities}\n\tactions: {self.actions}\n\tports: {self.ports}\n}}"
@@ -170,7 +171,10 @@ class MessageFeatureRes(Message):
 			
 			self.capabilities = frozenset(CA[self.version][1<<i] for i in range(32) if c_flags & (1<<i))
 			self.actions      = frozenset(ACTIONS[1<<i]          for i in range(32) if a_flags & (1<<i))
-			self.ports        = frozenset()#todo
+			
+			if self.version <= openflow12:
+				l = Port.length(self.version)
+				self.ports = tuple(Port(self.version).unpack(port_data[l*i:l*i+l]) for i in range(len(port_data)//l))
 			
 		return locals()
 	data = property(**data())

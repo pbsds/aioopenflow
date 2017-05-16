@@ -10,5 +10,6 @@ from aioopenflow.handler import Openflow10HubHandler
 #print(dir(aioopenflow.constants))
 #print(aioopenflow.constants.ER_HelloFailed.Incompatible)
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 run("0.0.0.0", 6653, handler = Openflow10HubHandler)#, asyncio_debug=True)

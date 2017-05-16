@@ -66,9 +66,12 @@ class BaseHandler:#handles the HELLO sequence
 			self.protocol.send_error_message(ER_BadRequest.BadType, msg.xid, version = msg.version)
 		#logger.info(str(msg))
 		#raise NotImplementedError()
-		self.FeatureRes = msg
-		logger.info(f"connection successfully established with {self.protocol.peername}")
-		self.loop.call_soon(self.connection_established)
+		if not self.FeatureRes:
+			self.FeatureRes = msg
+			logger.info(f"connection successfully established with {self.protocol.peername}")
+			self.loop.call_soon(self.connection_established)
+		else:
+			self.FeatureRes = msg
 	def handle_GetConfigReq(self, msg):
 		raise NotImplementedError()
 	def handle_GetConfigRes(self, msg):
