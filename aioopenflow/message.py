@@ -3,7 +3,7 @@ from aioopenflow.constants import *
 from aioopenflow.types import Port
 
 def is_msg(msg):
-	"a check to see if the instance _msg_ is a subclass og aioopenflow.message.Message"
+	"a check to see if the instance _msg_ is a subclass of aioopenflow.message.Message"
 	try:
 		return issubclass(msg.__class__, Message)
 	except AttributeError:
@@ -189,8 +189,36 @@ class MessageSetConfig(Message):
 	type = MT_SetConfig 
 
 class MessagePacketIn(Message):
-	type = MT_PacketIn 
-
+	type = MT_PacketIn
+	buffer_id   = -1
+	total_len   = -1
+	in_port     = -1
+	reason      = -1
+	packet_data = -1
+	def data():
+		def fget(self):
+			raise NotImplementedError()
+			out = (
+				
+			)
+			return b"".join(out)
+		def fset(self, value):
+			assert self.version == openflow10
+			
+			self.buffer_id   = int.from_bytes(value[ 0: 4], byteorder='big', signed=True)
+			self.total_len   = int.from_bytes(value[ 4: 6], byteorder='big')
+			self.in_port     = int.from_bytes(value[ 6: 8], byteorder='big')
+			self.reason      = int.from_bytes(value[ 8: 9], byteorder='big')
+			self.packet_data = value[10:10+self.total_len]
+			
+			self.reason = ("NoMatch", "Action")[self.reason]
+			
+		return locals()
+	data = property(**data())
+	def __str__(self):
+		return f"MessagePacketIn{(self.buffer_id, self.total_len, self.in_port, self.reason, self.packet_data)}"
+	__repr__ = __str__
+	
 class MessageFlowRemoved(Message):
 	type = MT_FlowRemoved 
 
@@ -198,7 +226,44 @@ class MessagePortStatus(Message):
 	type = MT_PortStatus 
 
 class MessagePacketOut(Message):
-	type = MT_PacketOut 
+	type = MT_PacketOut
+	buffer_id   = -1
+	in_port     = 0xffff#None
+	actions     = None#becomes a list
+	packet_data = b""
+	def __init__(self, *args, **kwargs):
+		Message.__init__(self, *args, **kwargs)
+		self.actions = []
+	def from_PacketIn(self, msg):
+		self.buffer_id   = msg.buffer_id
+		self.in_port     = msg.in_port
+		self.packet_data = msg.packet_data
+	def data():
+		def fget(self):
+			assert self.version == openflow10
+			assert type(self.packet_data) is bytes
+			
+			for i in self.actions:
+				i.version = self.version
+			
+			actions = b"".join(i.pack() for i in self.actions)
+			
+			out = (
+				self.buffer_id.to_bytes(4, byteorder='big', signed=True),
+				self.in_port  .to_bytes(2, byteorder='big'),
+				len(actions)  .to_bytes(2, byteorder='big'),
+				actions,
+				self.packet_data,
+			)
+			return b"".join(out)
+		def fset(self, value):
+			raise NotImplementedError()
+		return locals()
+	data = property(**data())
+	def __str__(self):
+		return f"MessagePacketOut{(self.buffer_id, self.in_port, self.actions, self.packet_data)}"
+	__repr__ = __str__
+	
 
 class MessageFlowMod(Message):
 	type = MT_FlowMod 

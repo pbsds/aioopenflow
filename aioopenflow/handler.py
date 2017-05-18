@@ -132,10 +132,3 @@ class BaseHandler:#handles the HELLO sequence
 		raise NotImplementedError()
 	def handle_BundleAddMessage(self, msg):
 		raise NotImplementedError()
-
-class Openflow10HubHandler(BaseHandler):
-	supported_versions = frozenset((openflow10,))
-	def connection_established(self):
-		pass
-	def handle_PacketIn(self, msg):
-		pass

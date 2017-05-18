@@ -1,4 +1,4 @@
-from aioopenflow.types import MessageType, ErrorType, ErrorCode
+from aioopenflow.types import MessageType, ErrorType, ErrorCode, NamedInt, ActionType
 #http://flowgrammable.org/sdn/openflow/message-layer/#tab_ofp_1_4
 
 #openflow versions:
@@ -56,6 +56,49 @@ def getMessageType(version, typenum):
 			if messagetype.for_version(version, silence=True) == typenum:
 				return messagetype
 	raise Exception(f"No defined MessageType for version {version} with type {typenum}")
+
+
+
+#openflow action types
+AT_Output       = ActionType((0x0000, 0x0000, 0x0000, 0x0000,     -1, "Output"))
+AT_SetVLANVID   = ActionType((0x0001, 0x0001,     -1,     -1,     -1, "SetVLANVID"))
+AT_SetVLANPCP   = ActionType((0x0002, 0x0002,     -1,     -1,     -1, "SetVLANPCP"))
+AT_StripVLAN    = ActionType((0x0003,     -1,     -1,     -1,     -1, "StripVLAN"))
+AT_SetDLSrc     = ActionType((0x0004, 0x0003,     -1,     -1,     -1, "SetDLSrc"))
+AT_SetDLDst     = ActionType((0x0005, 0x0004,     -1,     -1,     -1, "SetDLDst"))
+AT_SetNWSrc     = ActionType((0x0006, 0x0005,     -1,     -1,     -1, "SetNWSrc"))
+AT_SetNWDst     = ActionType((0x0007, 0x0006,     -1,     -1,     -1, "SetNWDst"))
+AT_SetNWTos     = ActionType((0x0008, 0x0007,     -1,     -1,     -1, "SetNWTos"))
+AT_SetNWECN     = ActionType((    -1, 0x0008,     -1,     -1,     -1, "SetNWECN"))
+AT_SetTPSrc     = ActionType((0x0009, 0x0009,     -1,     -1,     -1, "SetTPSrc"))
+AT_SetTPDst     = ActionType((0x000a, 0x000a,     -1,     -1,     -1, "SetTPDst"))
+AT_Enqueue      = ActionType((0x000b,     -1,     -1,     -1,     -1, "Enqueue"))
+AT_CopyTTLOut   = ActionType((    -1, 0x000b, 0x000b, 0x000b,     -1, "CopyTTLOut"))
+AT_CopyTTLIn    = ActionType((    -1, 0x000c, 0x000c, 0x000c,     -1, "CopyTTLIn"))
+AT_SetMPLSLabel = ActionType((    -1, 0x000d,     -1,     -1,     -1, "SetMPLSLabel"))
+AT_SetMPLSTC    = ActionType((    -1, 0x000e,     -1,     -1,     -1, "SetMPLSTC"))
+AT_SetMPLSTTL   = ActionType((    -1, 0x000f, 0x000f, 0x000f,     -1, "SetMPLSTTL"))
+AT_DecMPLSTTL   = ActionType((    -1, 0x0010, 0x0010, 0x0010,     -1, "DecMPLSTTL"))
+AT_PushVLAN     = ActionType((    -1, 0x0011, 0x0011, 0x0011,     -1, "PushVLAN"))
+AT_PopVLAN      = ActionType((    -1, 0x0012, 0x0012, 0x0012,     -1, "PopVLAN"))
+AT_PushMPLS     = ActionType((    -1, 0x0013, 0x0013, 0x0013,     -1, "PushMPLS"))
+AT_PopMPLS      = ActionType((    -1, 0x0014, 0x0014, 0x0014,     -1, "PopMPLS"))
+AT_SetQueue     = ActionType((    -1, 0x0015, 0x0015, 0x0015,     -1, "SetQueue"))
+AT_Group        = ActionType((    -1, 0x0016, 0x0016, 0x0016,     -1, "Group"))
+AT_SetNWTTL     = ActionType((    -1, 0x0017, 0x0017, 0x0017,     -1, "SetNWTTL"))
+AT_DecNWTTL     = ActionType((    -1, 0x0018, 0x0018, 0x0018,     -1, "DecNWTTL"))
+AT_SetField     = ActionType((    -1,     -1, 0x0019, 0x0019,     -1, "SetField"))
+AT_PushPBB      = ActionType((    -1,     -1,     -1, 0x001a,     -1, "PushPBB"))
+AT_PopPBB       = ActionType((    -1,     -1,     -1, 0x001b,     -1, "PopPBB"))
+AT_Experimenter = ActionType((    -1, 0xffff, 0xffff, 0xffff,     -1, "Experimenter"))
+AT_Vendor       = ActionType((0xffff,     -1,     -1,     -1,     -1, "Vendor"))
+
+def getActionType(version, typenum):
+	for key, actiontype in globals().items():
+		if key[:3] == "AT_":
+			if actiontype.for_version(version, silence=True) == typenum:
+				return messagetype
+	raise Exception(f"No defined ActionType for version {version} with type {typenum}")
 
 
 
@@ -188,16 +231,16 @@ ACTIONS = {
 
 
 #switch ports:
-PORT_ID_Max        = 0xFFFFFF00
-PORT_ID_InPort     = 0xFFFFFFF8
-PORT_ID_Table      = 0xFFFFFFF9
-PORT_ID_Normal     = 0xFFFFFFFA
-PORT_ID_Flood      = 0xFFFFFFFB
-PORT_ID_All        = 0xFFFFFFFC
-PORT_ID_Controller = 0xFFFFFFFD
-PORT_ID_Local      = 0xFFFFFFFE
-PORT_ID_Any        = 0xFFFFFFFF#of v1.1 and 1v2
-PORT_ID_None       = 0xFFFFFFFF#of v1.0
+PORT_ID_Max        = NamedInt(0xFFFFFF00, "Max")
+PORT_ID_InPort     = NamedInt(0xFFFFFFF8, "InPort")
+PORT_ID_Table      = NamedInt(0xFFFFFFF9, "Table")
+PORT_ID_Normal     = NamedInt(0xFFFFFFFA, "Normal")
+PORT_ID_Flood      = NamedInt(0xFFFFFFFB, "Flood")
+PORT_ID_All        = NamedInt(0xFFFFFFFC, "All")
+PORT_ID_Controller = NamedInt(0xFFFFFFFD, "Controller")
+PORT_ID_Local      = NamedInt(0xFFFFFFFE, "Local")
+PORT_ID_Any        = NamedInt(0xFFFFFFFF, "Any") #of v1.1 and 1v2
+PORT_ID_None       = NamedInt(0xFFFFFFFF, "None")#of v1.0
 PORT_IDS = (PORT_ID_Max, PORT_ID_InPort, PORT_ID_Table, PORT_ID_Normal, PORT_ID_Flood, PORT_ID_All, PORT_ID_Controller, PORT_ID_Local, PORT_ID_Any, PORT_ID_None)
 
 PORT_CONFIG = {
@@ -253,9 +296,6 @@ PORT_FEATURE = {
 	0x00004000 : "Pause",
 	0x00008000 : "PauseAsym",
 }
-
-
-
 
 
 

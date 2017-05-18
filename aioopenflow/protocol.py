@@ -37,6 +37,7 @@ class OpenFlowProtocol(asyncio.Protocol):
 				except NotImplementedError as e:
 					logger.warning("NotImplementedError: ")
 					logger.warning(e, exc_info = True)
+					
 			else:
 				break
 		

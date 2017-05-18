@@ -17,6 +17,22 @@ class MessageType(tuple):
 	def name(self):
 		return self[5]
 
+class ActionType(tuple):
+	def __repr__(self):
+		return f"ActionType/{self.name}"
+	__str__ = __repr__
+	def for_version(self, version, silence=False):
+		if not (1<=version<=5):
+			raise Exception("Invalid openflow version number %i" % version)
+		if not silence:
+			if self[version-1] == -1:
+				raise Exception("%s is not a valid ActionType in openflow v1.%i" % (self.name, version-1))
+		return self[version-1]
+	
+	@property
+	def name(self):
+		return self[5]
+
 class ErrorType(object):
 	def __init__(self, of10type, of11type, of12type, of13type, of14type, name):
 		self._types = (of10type, of11type, of12type, of13type, of14type)
@@ -44,6 +60,20 @@ class ErrorCode:
 		if self.codes[version-1] == None:
 			raise Exception("%s not a valid ErrorCode in openflow v1.%i" % (self.name, version-1))
 		return self.types[version-1], self.codes[version-1]
+
+class NamedInt(int):
+	def __new__(cls, value, name, *args, **kwargs):
+		self = super(NamedInt, cls).__new__(cls, value, *args, **kwargs)
+		self.name = name
+		return self
+	def __str__(self):
+		return self.name
+	def __repr__(self):
+		#return self.name#lolwatever
+		return f"{self.name}:{int(self)}"
+		#return f"NamedInt({int(self)}, {self.name})"
+
+
 
 #stuff
 class Port:#currently only supports openflow v1.0, but lays the groundwork for v1.1 - v1.3
@@ -109,6 +139,10 @@ class Port:#currently only supports openflow v1.0, but lays the groundwork for v
 		self.feature_supported  = frozenset(name for bit, name in aioopenflow.constants.PORT_FEATURE.items() if bit & supported )
 		self.feature_peer       = frozenset(name for bit, name in aioopenflow.constants.PORT_FEATURE.items() if bit & peer      )
 		
+		#makes the __str__ look nice:
+		if self.port_id in aioopenflow.constants.PORT_IDS:
+			self.port_id = aioopenflow.constants.PORT_IDS[aioopenflow.constants.PORT_IDS.index(self.port_id)]
+		
 		return self
 	@staticmethod
 	def length(version):
@@ -120,6 +154,5 @@ class Port:#currently only supports openflow v1.0, but lays the groundwork for v
 			aioopenflow.constants.openflow14 : 0,
 		}[version]
 	def __str__(self):
-		return f"Port({self.port_id}, {self.hw_addr}, {self.name}, {self.config}, {self.state}, {self.feature_curr}, {self.feature_advertised}, {self.feature_supported}, {self.feature_peer})"
+		return f"Port{(self.port_id,self.hw_addr,self.name,self.config,self.state,self.feature_curr,self.feature_advertised,self.feature_supported,self.feature_peer)}"
 	__repr__ = __str__
-
