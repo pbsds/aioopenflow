@@ -1,6 +1,8 @@
 import itertools
 from aioopenflow.constants import *
 from aioopenflow.types import Port
+from aioopenflow.action import is_action
+from aioopenflow.match import Match
 
 def is_msg(msg):
 	"a check to see if the instance _msg_ is a subclass of aioopenflow.message.Message"
@@ -127,7 +129,7 @@ class MessageFeatureReq(Message):
 class MessageFeatureRes(Message):
 	type = MT_FeatureRes
 	
-	datapath_id  = b"\x00"*8  #id/mac type-thing?
+	datapath_id  = 0          #id/mac type-thing?
 	n_buffers    = 0          #dentifies how many packets the switch can queue for PacketIn (capture and forward to the controller) activities
 	n_tables     = 0          #The number of tables in the switch
 	auxiliary_id = 0          #indicate how the switch is treating the OpenFlow transport channel (master controller, or auxiliary). Only used in openflow v1.3 and v1.4
@@ -147,7 +149,7 @@ class MessageFeatureRes(Message):
 			actions      = sum(bit for bit, name in ACTIONS.items()          if name in self.actions)
 			
 			out = (
-				self.datapath_id,
+				self.datapath_id .to_bytes(8, byteorder='big'),
 				self.n_buffers   .to_bytes(4, byteorder='big'),
 				self.n_tables    .to_bytes(1, byteorder='big'),
 				self.auxiliary_id.to_bytes(1, byteorder='big'),
@@ -223,13 +225,29 @@ class MessageFlowRemoved(Message):
 	type = MT_FlowRemoved 
 
 class MessagePortStatus(Message):
-	type = MT_PortStatus 
+	type = MT_PortStatus
+	reason = None#Either "Add", "Delete" or "Modify"
+	port = None
+	def data():
+		def fget(self):
+			assert type(self.port) is Port
+			out = (
+				{"add":b"\0", "delete":b"\1", "modify":b"\2"}[self.reason.lower()],
+				b"\0"*7,
+				self.port.pack(),
+			)
+			return b"".join(out)
+		def fset(self, value):
+			self.reason = ("Add", "Delete", "Modify")[value[0]]
+			self.port = Port(self.version).unpack(value[8:])
+		return locals()
+	data = property(**data())
 
 class MessagePacketOut(Message):
 	type = MT_PacketOut
 	buffer_id   = -1
 	in_port     = 0xffff#None
-	actions     = None#becomes a list
+	actions     = None#becomes a list in __init__
 	packet_data = b""
 	def __init__(self, *args, **kwargs):
 		Message.__init__(self, *args, **kwargs)
@@ -244,6 +262,7 @@ class MessagePacketOut(Message):
 			assert type(self.packet_data) is bytes
 			
 			for i in self.actions:
+				assert is_action(i), i
 				i.version = self.version
 			
 			actions = b"".join(i.pack() for i in self.actions)
@@ -264,9 +283,50 @@ class MessagePacketOut(Message):
 		return f"MessagePacketOut{(self.buffer_id, self.in_port, self.actions, self.packet_data)}"
 	__repr__ = __str__
 	
-
 class MessageFlowMod(Message):
-	type = MT_FlowMod 
+	type = MT_FlowMod
+	match = None
+	cookie = "\0"*8
+	command = "Add"#in ("Add", "Modify", "ModifyStrict", "Delete", "DeleteStrict")
+	idle_timeout = 0
+	hard_timeout = 0
+	priority = 0x7FFF
+	buffer_id = -1
+	out_port = PORT_ID_None
+	actions = None#set to list in __init__
+	def __init__(self, *args, **kwargs):
+		Message.__init__(self, *args, **kwargs)
+		self.actions = []
+	def data():
+		def fget(self):
+			assert type(self.match) is Match, self.match
+			assert type(self.command) is str, self.command
+			assert type(self.cookie) is bytes, self.cookie
+			assert len(self.cookie) == 8, self.cookie
+			
+			for i in self.actions:
+				assert is_action(i), i
+				i.version = self.version
+			self.match.version = self.version
+			
+			out = (
+				self.match.pack(),
+				self.cookie,
+				("add", "modify", "modifystrict", "delete", "deletestrict").index(self.command.lower()).to_bytes(2, byteorder='big'),
+				idle_timeout     .to_bytes(2, byteorder='big'),
+				hard_timeout     .to_bytes(2, byteorder='big'),
+				priority         .to_bytes(2, byteorder='big'),
+				buffer_id        .to_bytes(4, byteorder='big', signed=True),
+				(out_port&0xFFFF).to_bytes(2, byteorder='big'),
+				b"".join(i.pack() for i in self.actions),
+			)
+			return b"".join(out)
+		def fset(self, value):
+			raise NotImplementedError()
+			
+		return locals()
+	data = property(**data())
+	
 
 class MessagePortMod(Message):
 	type = MT_PortMod 

@@ -49,12 +49,12 @@ MT_RoleStatus        = MessageType((-1, -1, -1, -1, 30, "RoleStatus"))
 MT_RequestForward    = MessageType((-1, -1, -1, -1, 32, "RequestForward"))
 MT_BundleControl     = MessageType((-1, -1, -1, -1, 33, "BundleControl"))
 MT_BundleAddMessage  = MessageType((-1, -1, -1, -1, 34, "BundleAddMessage"))
+MTs = tuple(messagetype for key, messagetype in locals().items() if key[:3] == "MT_")
 
 def getMessageType(version, typenum):
-	for key, messagetype in globals().items():
-		if key[:3] == "MT_":
-			if messagetype.for_version(version, silence=True) == typenum:
-				return messagetype
+	for messagetype in MTs:
+		if messagetype.for_version(version, silence=True) == typenum:
+			return messagetype
 	raise Exception(f"No defined MessageType for version {version} with type {typenum}")
 
 
@@ -92,12 +92,12 @@ AT_PushPBB      = ActionType((    -1,     -1,     -1, 0x001a,     -1, "PushPBB")
 AT_PopPBB       = ActionType((    -1,     -1,     -1, 0x001b,     -1, "PopPBB"))
 AT_Experimenter = ActionType((    -1, 0xffff, 0xffff, 0xffff,     -1, "Experimenter"))
 AT_Vendor       = ActionType((0xffff,     -1,     -1,     -1,     -1, "Vendor"))
+ATs = tuple(actiontype for key, actiontype in locals().items() if key[:3] == "AT_")
 
 def getActionType(version, typenum):
-	for key, actiontype in globals().items():
-		if key[:3] == "AT_":
-			if actiontype.for_version(version, silence=True) == typenum:
-				return messagetype
+	for actiontype in ATs:
+		if actiontype.for_version(version, silence=True) == typenum:
+			return actiontype
 	raise Exception(f"No defined ActionType for version {version} with type {typenum}")
 
 

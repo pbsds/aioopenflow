@@ -8,7 +8,7 @@ logger = logging.getLogger('aioopenflow')
 def is_action(action):
 	"a check to see if the instance _action_ is a subclass of aioopenflow.Action.Action"
 	try:
-		return issubclass(msg.__class__, Message)
+		return issubclass(action.__class__, Action)
 	except AttributeError:
 		return False
 

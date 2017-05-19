@@ -4,19 +4,26 @@ from aioopenflow.message import *
 import logging
 logger = logging.getLogger('aioopenflow')
 
-class BaseHandler:#handles the HELLO sequence
+class BaseHandler:#handles establishing and maintaining a connection
 	#constants
 	protocol = None
 	loop = None
 	version = None#set when hello sequence has finished
-	switch_ports = []#not yet implemented
-	switch_mac = None#not yet implemented
 	#class specific
 	supported_versions = frozenset((openflow10, openflow11, openflow12, openflow13, openflow14))
-	FeatureRes = None
+	#state:
+	switch_datapath_id  = -1         #id/mac type-thing?
+	switch_n_buffers    = 0          #dentifies how many packets the switch can queue for PacketIn (capture and forward to the controller) activities
+	switch_n_tables     = 0          #The number of tables in the switch
+	switch_auxiliary_id = 0          #indicate how the switch is treating the OpenFlow transport channel (master controller, or auxiliary). Only used in openflow v1.3 and v1.4
+	switch_capabilities = frozenset()#capabilities supported by the switch
+	switch_actions      = frozenset()#actions supported by the switch, only used in openflow v1.0
+	switch_ports        = None       #only used in openflow v1.0, v1.1 and v1.2
 	def __init__(self, protocol, loop):
 		self.protocol = protocol
 		self.loop = loop
+		
+		self.switch_ports = {}#[port_id] = Port()
 	def connection_made(self):
 		msg = MessageHello()
 		msg.version = max(self.supported_versions)
@@ -66,12 +73,18 @@ class BaseHandler:#handles the HELLO sequence
 			self.protocol.send_error_message(ER_BadRequest.BadType, msg.xid, version = msg.version)
 		#logger.info(str(msg))
 		#raise NotImplementedError()
-		if not self.FeatureRes:
-			self.FeatureRes = msg
+		
+		if self.switch_datapath_id == -1:
 			logger.info(f"connection successfully established with {self.protocol.peername}")
 			self.loop.call_soon(self.connection_established)
-		else:
-			self.FeatureRes = msg
+			
+		self.switch_datapath_id  = msg.datapath_id
+		self.switch_n_buffers    = msg.n_buffers
+		self.switch_n_tables     = msg.n_tables
+		self.switch_auxiliary_id = msg.auxiliary_id
+		self.switch_capabilities = msg.capabilities
+		self.switch_actions      = msg.actions
+		self.switch_ports        = {i.port_id : i for i in msg.ports}
 	def handle_GetConfigReq(self, msg):
 		raise NotImplementedError()
 	def handle_GetConfigRes(self, msg):
@@ -83,7 +96,14 @@ class BaseHandler:#handles the HELLO sequence
 	def handle_FlowRemoved(self, msg):
 		raise NotImplementedError()
 	def handle_PortStatus(self, msg):
-		raise NotImplementedError()
+		#print(msg.port)
+		if msg.reason in ("Add", "Modify"):
+			self.switch_ports[msg.port.port_id] = msg.port
+		elif msg.reason == "Delete":
+			if msg.port.port_id in self.switch_ports:
+				del self.switch_ports[msg.port.port_id]
+		else:
+			raise ValueError(f"handler.handle_PortStatus got msg.reason == {msg.reason}")
 	def handle_PacketOut(self, msg):
 		raise NotImplementedError()
 	def handle_FlowMod(self, msg):
