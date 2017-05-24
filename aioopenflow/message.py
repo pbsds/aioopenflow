@@ -44,16 +44,16 @@ class Message:
 		elif type(self.xid) is not int:
 			self.xid = int(self.xid)
 		
-		assert type(self.data) is bytes
+		data = self.data#cache the property
+		assert type(data) is bytes
 		assert type(self.type) is MessageType
 		
 		out = [
 			bytes((self.version, self.type.for_version(self.version))),
-			(len(self.data)+8).to_bytes(2, byteorder='big'),
+			(len(data)+8).to_bytes(2, byteorder='big'),
 			self.xid.to_bytes(4, byteorder='big'),
-			self.data
+			data,
 		]
-		
 		return b"".join(out)
 	def unpack(self, data):
 		self.version = data[0]
@@ -286,12 +286,17 @@ class MessagePacketOut(Message):
 class MessageFlowMod(Message):
 	type = MT_FlowMod
 	match = None
-	cookie = "\0"*8
+	cookie = b"\1"*8
 	command = "Add"#in ("Add", "Modify", "ModifyStrict", "Delete", "DeleteStrict")
 	idle_timeout = 0
 	hard_timeout = 0
 	priority = 0x7FFF
 	buffer_id = -1
+	flags = tuple()
+	#flag can contain:
+	#    "SendFlowRem"  - Send flow removed message when flow expires or is deleted.
+	#    "CheckOverlap" - Check for overlapping entries first. Error occours if there is one
+	#    "Emerg"        - Remark this is for emergency. Only used when disconnected from controller
 	out_port = PORT_ID_None
 	actions = None#set to list in __init__
 	def __init__(self, *args, **kwargs):
@@ -309,15 +314,20 @@ class MessageFlowMod(Message):
 				i.version = self.version
 			self.match.version = self.version
 			
+			flags = 0
+			for i in self.flags:
+				flags |= 1 << ("sendflowrem", "checkoverlap", "emerg").index(i.lower())
+			
 			out = (
 				self.match.pack(),
 				self.cookie,
 				("add", "modify", "modifystrict", "delete", "deletestrict").index(self.command.lower()).to_bytes(2, byteorder='big'),
-				idle_timeout     .to_bytes(2, byteorder='big'),
-				hard_timeout     .to_bytes(2, byteorder='big'),
-				priority         .to_bytes(2, byteorder='big'),
-				buffer_id        .to_bytes(4, byteorder='big', signed=True),
-				(out_port&0xFFFF).to_bytes(2, byteorder='big'),
+				self.idle_timeout     .to_bytes(2, byteorder='big'),
+				self.hard_timeout     .to_bytes(2, byteorder='big'),
+				self.priority         .to_bytes(2, byteorder='big'),
+				self.buffer_id        .to_bytes(4, byteorder='big', signed=True),
+				(self.out_port&0xFFFF).to_bytes(2, byteorder='big'),
+				flags                 .to_bytes(2, byteorder='big'),
 				b"".join(i.pack() for i in self.actions),
 			)
 			return b"".join(out)
@@ -326,7 +336,9 @@ class MessageFlowMod(Message):
 			
 		return locals()
 	data = property(**data())
-	
+
+
+
 
 class MessagePortMod(Message):
 	type = MT_PortMod 

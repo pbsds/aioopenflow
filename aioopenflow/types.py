@@ -92,45 +92,6 @@ class NamedInt(int):
 #		return f"ip{self._ip}"
 #	__repr__ = __str__#deprecate?
 
-class TcpIpPacket:
-	def _field(start, end, type=int, decode=True):
-		def fget(self):
-			if decode:
-				return type(int.from_bytes(self.data[start:end], byteorder='big'))
-			else:
-				return type(self.data[start:end])
-		def fset(self, value):
-			if decode:
-				store = value.to_bytes(end - start, byteorder="big")
-			else:
-				store = bytes(value)
-			self.data = self.data[:start] + store + self.data[end:]
-		return property(fget, fset)
-	def __init__(self, data):
-		self.data = data
-		assert data[14] == ord("E")#nasty
-	
-	#assumtions:
-	dl_dst   = _field( 0,  6, type=tuple, decode=False) #Ethernet destination address
-	dl_src   = _field( 6, 12, type=tuple, decode=False) #Ethernet source address
-	#dl_vlan  = _field(, )                               #Input VLAN id
-	#dl_pcp   = _field(, )                               #Input VLAN priority
-	dl_type  = _field(12, 14)                           #Ethernet frame type
-	nw_tos   = _field(15, 16)                           #IP ToS (actually DSCP field, 6 bits) (lacks a >> 2)
-	nw_proto = _field(23, 24)                           #IP protocol
-	nw_src   = _field(26, 30, type=tuple, decode=False) #IP source address
-	nw_dst   = _field(30, 34, type=tuple, decode=False) #IP destination address
-	tp_src   = _field(34, 36)                           #TCP/UDP source port
-	tp_dst   = _field(36, 38)                           #TCP/UDP destination port
-	
-	
-
-
-b'\xda6\x96\x07\xaaY.\x15\xe4\xcb\x18\xb2\x08\x00'
-b'E\x00\x00T.\xe9@\x00@\x01\xf7'
-b'\xbc\n\x00\x00\x01\n\x00\x00\x03\x08\x00?}\x18)\x00\x01\xf6\x17\x1fY\x9f\xe4\x00'
-b'\x00\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b'
-b'\x1c\x1d\x1e\x1f !"#$%&\'()*+,-./01234567'
 
 #stuff
 class Port:#currently only supports openflow v1.0, but lays the groundwork for v1.1 - v1.3

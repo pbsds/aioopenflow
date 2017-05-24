@@ -1,18 +1,24 @@
 import aioopenflow.constants
+import aioopenflow.packet
 import copy
 
 class Match:
 	version = None
 	oxms = None
 	def __init__(self):
-		oxms = []
+		self.oxms = []
 	def add_OXM(self, oxm):
 		if oxm._dependencies:
 			for d in oxm._dependencies:
-				if d not in oxms:
-					self.oxms.append(copy.copy(d))
+				if type(d) is type:
+					if d not in map(type, self.oxms):
+						raise Exception(f"{d} not found among self.oxms, required by oxm")
+				else:
+					if d not in self.oxms:
+						self.oxms.append(copy.copy(d))
+		
 		for i, o in enumerate(self.oxms):
-			if o.classnum == oxm.classnum:
+			if o.classnum == oxm.classnum and o.fieldvalue == oxm.fieldvalue:
 				self.oxms[i] = oxm
 				break
 		else:
@@ -43,49 +49,53 @@ class Match:
 		tp_dst    = 0
 		
 		for oxm in self.oxms:
+			if oxm.classnum != 0x8000:
+				continue
 			if oxm.fieldvalue == OXM_in_port.fieldvalue:
-				in_port = OXM.data
+				in_port = oxm.data
 				wildcards |= 0x00000001
 			elif oxm.fieldvalue == OXM_eth_src.fieldvalue:
-				dl_src = OXM.data
+				dl_src = oxm.data
 				wildcards |= 0x00000004
 			elif oxm.fieldvalue == OXM_eth_dst.fieldvalue:
-				dl_dst = OXM.data
+				dl_dst = oxm.data
 				wildcards |= 0x00000008
 			elif oxm.fieldvalue == OXM_vlan_vid.fieldvalue:
-				dl_vlan = OXM.data
+				dl_vlan = oxm.data
 				wildcards |= 0x00000002
 			elif oxm.fieldvalue == OXM_vlan_pcp.fieldvalue:
-				dl_pcp = OXM.data
+				dl_pcp = oxm.data
 				wildcards |= 0x00100000
 			elif oxm.fieldvalue == OXM_eth_type.fieldvalue:
-				dl_type = OXM.data
+				dl_type = oxm.data
 				wildcards |= 0x00000010
 			elif oxm.fieldvalue == OXM_ip_dscp.fieldvalue:
-				nw_tos = OXM.data
+				nw_tos = oxm.data
 				wildcards |= 0x00200000
 			elif oxm.fieldvalue == OXM_ip_proto.fieldvalue:
-				nw_proto = OXM.data
+				nw_proto = oxm.data
 				wildcards |= 0x00000020
 			elif oxm.fieldvalue == OXM_arp_op.fieldvalue:
-				nw_proto = OXM.data & 0xFF
+				nw_proto = oxm.data & 0xFF
 				wildcards |= 0x00000020
 			elif oxm.fieldvalue == OXM_ipv4_src.fieldvalue:
-				nw_src = OXM.data
-				if OXM.hasmask:
-					VLSM = bin(int.from_bytes(OXM.payload_raw[4:], byteorder="big")).count("1")
+				nw_src = oxm.data
+				if oxm.hasmask:
+					VLSM = bin(int.from_bytes(oxm.payload_raw[4:], byteorder="big")).count("1")
 					wildcards |= (32-VLSM) << 8
 			elif oxm.fieldvalue == OXM_ipv4_dst.fieldvalue:
-				nw_dst = OXM.data
-				if OXM.hasmask:
-					VLSM = bin(int.from_bytes(OXM.payload_raw[4:], byteorder="big")).count("1")
+				nw_dst = oxm.data
+				if oxm.hasmask:
+					VLSM = bin(int.from_bytes(oxm.payload_raw[4:], byteorder="big")).count("1")
 					wildcards |= (32-VLSM) << 14
 			elif oxm.fieldvalue == OXM_tcp_src.fieldvalue:
-				tp_src = OXM.data
+				tp_src = oxm.data
 				wildcards |= 0x00000040
 			elif oxm.fieldvalue == OXM_tcp_dst.fieldvalue:
-				tp_dst = OXM.data
+				tp_dst = oxm.data
 				wildcards |= 0x00000080
+		
+		wildcards ^= 0xFFFFFFFF
 		
 		out = (
 			wildcards.to_bytes(4, byteorder='big'),
@@ -94,11 +104,11 @@ class Match:
 			dl_dst   .to_bytes(6, byteorder='big'),
 			dl_vlan  .to_bytes(2, byteorder='big'),
 			dl_pcp   .to_bytes(1, byteorder='big'),
-			"\0",
+			b"\0",
 			dl_type  .to_bytes(2, byteorder='big'),
 			nw_tos   .to_bytes(1, byteorder='big'),
 			nw_proto .to_bytes(1, byteorder='big'),
-			"\0\0",
+			b"\0\0",
 			nw_src   .to_bytes(4, byteorder='big'),
 			nw_dst   .to_bytes(4, byteorder='big'),
 			tp_src   .to_bytes(2, byteorder='big'),
@@ -106,16 +116,38 @@ class Match:
 		)
 		return b"".join(out)
 	def _pack11(self):
+		raise NotImplementedError()
 		pass#todo
 	def unpack():
 		raise NotImplementedError()
 
-def from_ip_packet(packet):
-	if type(packet) is bytes:
-		packet = Packet(packet)
-	match = Match()
+def from_ethernet_packet(packet, in_port = None, match = None):
+	eth = aioopenflow.packet.EthernetPacket(packet)
 	
+	if not match:
+		match = Match()
+	
+	if in_port is not None:
+		match.add_OXM(OXM_in_port(in_port))
+	
+	match.add_OXM(OXM_eth_src(int.from_bytes(bytes(eth.dl_src), byteorder="big")))
+	match.add_OXM(OXM_eth_dst(int.from_bytes(bytes(eth.dl_dst), byteorder="big")))
+	
+	return match
 
+def from_ip_packet(packet, in_port = None, match = None):#untested
+	ip = aioopenflow.packet.IpPacket(packet)
+	
+	if not match:
+		match = Match()
+	
+	if in_port is not None:
+		match.add_OXM(OXM_in_port(in_port))
+	match.add_OXM(OXM_ipv4_src(int.from_bytes(bytes(ip.nw_src), byteorder="big")))
+	match.add_OXM(OXM_ipv4_dst(int.from_bytes(bytes(ip.nw_dst), byteorder="big")))
+	
+	return match
+	
 #base
 class OXM:
 	classnum      = 0x8000#OpenFlowBasic
@@ -193,7 +225,7 @@ class OXM_in_phy_port(OXM):#Switch physical input port
 	fieldlength   = 32
 	fieldvalue    = 0x01
 	hasmask       = 0
-	_dependencies = (OXM_in_port)
+	_dependencies = (OXM_in_port,)
 
 class OXM_metadata(OXM):#Metadata passed between tables
 	fieldlength   = 64
@@ -224,187 +256,187 @@ class OXM_vlan_pcp(OXM):#VLAN priority
 	fieldlength   = 3
 	fieldvalue    = 0x07
 	hasmask       = 0
-	_dependencies = (OXM_vlan_vid)
+	_dependencies = (OXM_vlan_vid,)
 
 class OXM_ip_dscp(OXM):#IP DSCP (6 bits in ToS field)
 	fieldlength   = 6
 	fieldvalue    = 0x08
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd),)
 
 class OXM_ip_ecn(OXM):#IP ECN (2 bits in ToS field)
 	fieldlength   = 2
 	fieldvalue    = 0x09
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd),)
 
 class OXM_ip_proto(OXM):#IP protocol
 	fieldlength   = 8
 	fieldvalue    = 0x0a
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x0800), OXM_eth_type(0x86dd),)
 
 class OXM_ipv4_src(OXM):#IPv4 source address
 	fieldlength   = 32
 	fieldvalue    = 0x0b
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0800))
+	_dependencies = (OXM_eth_type(0x0800),)
 
 class OXM_ipv4_dst(OXM):#IPv4 destination address
 	fieldlength   = 32
 	fieldvalue    = 0x0c
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0800))
+	_dependencies = (OXM_eth_type(0x0800),)
 
 class OXM_tcp_src(OXM):#TCP source port
 	fieldlength   = 16
 	fieldvalue    = 0x0d
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(6))
+	_dependencies = (OXM_ip_proto(6),)
 
 class OXM_tcp_dst(OXM):#TCP destination port
 	fieldlength   = 16
 	fieldvalue    = 0x0e
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(6))
+	_dependencies = (OXM_ip_proto(6),)
 
 class OXM_udp_src(OXM):#UDP source port
 	fieldlength   = 16
 	fieldvalue    = 0x0f
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(17))
+	_dependencies = (OXM_ip_proto(17),)
 
 class OXM_udp_dst(OXM):#UDP destination port
 	fieldlength   = 16
 	fieldvalue    = 0x10
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(17))
+	_dependencies = (OXM_ip_proto(17),)
 
 class OXM_sctp_src(OXM):#SCTP source port
 	fieldlength   = 16
 	fieldvalue    = 0x11
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(132))
+	_dependencies = (OXM_ip_proto(132),)
 
 class OXM_sctp_dst(OXM):#SCTP destination port
 	fieldlength   = 16
 	fieldvalue    = 0x12
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(132))
+	_dependencies = (OXM_ip_proto(132),)
 
 class OXM_icmpv4_type(OXM):#ICMP type
 	fieldlength   = 8
 	fieldvalue    = 0x13
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(1))
+	_dependencies = (OXM_ip_proto(1),)
 
 class OXM_icmpv4_code(OXM):#ICMP code
 	fieldlength   = 8
 	fieldvalue    = 0x14
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(1))
+	_dependencies = (OXM_ip_proto(1),)
 
 class OXM_arp_op(OXM):#ARP opcode
 	fieldlength   = 16
 	fieldvalue    = 0x15
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0806))
+	_dependencies = (OXM_eth_type(0x0806),)
 
 class OXM_arp_spa(OXM):#ARP source IPv4 address
 	fieldlength   = 32
 	fieldvalue    = 0x16
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0806))
+	_dependencies = (OXM_eth_type(0x0806),)
 
 class OXM_arp_tpa(OXM):#ARP target IPv4 address
 	fieldlength   = 32
 	fieldvalue    = 0x17
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0806))
+	_dependencies = (OXM_eth_type(0x0806),)
 
 class OXM_arp_sha(OXM):#ARP source hardware address
 	fieldlength   = 48
 	fieldvalue    = 0x18
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0806))
+	_dependencies = (OXM_eth_type(0x0806),)
 
 class OXM_arp_tha(OXM):#ARP target hardware address
 	fieldlength   = 48
 	fieldvalue    = 0x19
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x0806))
+	_dependencies = (OXM_eth_type(0x0806),)
 
 class OXM_ipv6_src(OXM):#IPv6 source address
 	fieldlength   = 128
 	fieldvalue    = 0x1a
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x86dd),)
 
 class OXM_ipv6_dst(OXM):#IPv6 destination address
 	fieldlength   = 128
 	fieldvalue    = 0x1b
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x86dd),)
 
 class OXM_ipv6_flabel(OXM):#IPv6 Flow Labe
 	fieldlength   = 20
 	fieldvalue    = 0x1c
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x86dd))
+	_dependencies = (OXM_eth_type(0x86dd),)
 
 class OXM_icmpv6_type(OXM):#ICMPv6 type
 	fieldlength   = 8
 	fieldvalue    = 0x1d
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(58))
+	_dependencies = (OXM_ip_proto(58),)
 
 class OXM_icmpv6_code(OXM):#ICMPv6 code
 	fieldlength   = 8
 	fieldvalue    = 0x1e
 	hasmask       = 0
-	_dependencies = (OXM_ip_proto(58))
+	_dependencies = (OXM_ip_proto(58),)
 
 class OXM_ipv6_nd_target(OXM):#Target address for ND
 	fieldlength   = 128
 	fieldvalue    = 0x1f
 	hasmask       = 0
-	_dependencies = (OXM_icmpv6_type(135), OXM_icmpv6_type(136))
+	_dependencies = (OXM_icmpv6_type(135), OXM_icmpv6_type(136),)
 
 class OXM_ipv6_nd_sll(OXM):#Source link-layer for ND
 	fieldlength   = 48
 	fieldvalue    = 0x20
 	hasmask       = 0
-	_dependencies = (OXM_icmpv6_type(135))
+	_dependencies = (OXM_icmpv6_type(135),)
 
 class OXM_ipv6_nd_tll(OXM):#Target link-layer for ND
 	fieldlength   = 48
 	fieldvalue    = 0x21
 	hasmask       = 0
-	_dependencies = (OXM_icmpv6_type(136))
+	_dependencies = (OXM_icmpv6_type(136),)
 
 class OXM_mpls_label(OXM):#MPLS label
 	fieldlength   = 20
 	fieldvalue    = 0x22
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848))
+	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848),)
 
 class OXM_mpls_tc(OXM):#MPLS TC
 	fieldlength   = 3
 	fieldvalue    = 0x23
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848))
+	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848),)
 
 class OXM_mpls_bos(OXM):#
 	fieldlength   = 1
 	fieldvalue    = 0x24
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848))
+	_dependencies = (OXM_eth_type(0x8847), OXM_eth_type(0x8848),)
 
 class OXM_pbb_isid(OXM):#
 	fieldlength   = 24
 	fieldvalue    = 0x25
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x8847))
+	_dependencies = (OXM_eth_type(0x8847),)
 
 class OXM_tunnel_id(OXM):#
 	fieldlength   = 64
@@ -415,5 +447,4 @@ class OXM_ipv6_hexthdr(OXM):#
 	fieldlength   = 9
 	fieldvalue    = 0x27
 	hasmask       = 0
-	_dependencies = (OXM_eth_type(0x86dd))
-
+	_dependencies = (OXM_eth_type(0x86dd),)
